@@ -1,5 +1,6 @@
 /// <reference path="../Lib/phaser.d.ts"/>
 
+const OCTOPUSSPEED = 0.3;
 class SimpleGame {
 
     game: Phaser.Game;
@@ -7,37 +8,174 @@ class SimpleGame {
         this.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'content',
-            width: 800,
-            height: 600,
-            backgroundColor: 'rgba(100,0,0,0)',
-            transparent: true,
+            width: 1024,
+            height: 768,
+            backgroundColor: '#FFFFFF',
+            transparent: false,
             clearBeforeRender: false,
-            scene: [TestScene]
+            scene: [TestScene],
+            scale: {
+                mode: Phaser.Scale.ScaleModes.FIT,
+                resizeInterval: 1,
+            },
         });
     }
 }
 
 class TestScene extends Phaser.Scene {
     graphics: Phaser.GameObjects.Graphics;
+    tentacle: Tentacle;
+    octopus: Octopus;
+
+    keyboardDirection: [x: integer, y: integer] = [0, 0];
 
     preload() {
-        //this.load.image('logo', 'Assets/ppp.png');
+        this.load.image('ocean', 'Assets/ocean.jpg');
+        this.load.image('octopus', 'Assets/ghost.png');
     }
 
     create() {
         this.graphics = this.add.graphics({ x: 0, y: 0 });
-        //var logo = this.add.sprite(this.game.canvas.width / 2, this.game.canvas.height / 2, 'logo');
 
-        this.input.mouse.disableContextMenu();
-        this.input.on('pointerdown', function (pointer) {
-            var moveDirection = new Phaser.Math.Vector2(pointer.x, pointer.y);
-            moveDirection.normalize();
-            var desiredRotation = Math.atan2(moveDirection.y, moveDirection.x);
+        var background = this.add.sprite(this.game.canvas.width / 2, this.game.canvas.height / 2, 'ocean');
+        background.displayWidth = this.game.canvas.width;
+        background.displayHeight = this.game.canvas.height;
+        background.depth = -1;
 
-            this.graphics.lineStyle(10, 0x99ff00)
-            this.graphics.lineBetween(0, 0, pointer.x, pointer.y);
+
+        /* ***********
+         * KEYBOARD CONTROLS
+         * ************ */
+        this.input.keyboard.on('keydown-RIGHT', event => {
+            this.keyboardDirection[0] = 1;
         }, this);
+        this.input.keyboard.on('keyup-RIGHT', event => {
+            this.keyboardDirection[0] = 0;
+        }, this);
+        this.input.keyboard.on('keydown-LEFT', event => {
+            this.keyboardDirection[0] = -1;
+        }, this);
+        this.input.keyboard.on('keyup-LEFT', event => {
+            this.keyboardDirection[0] = 0;
+        }, this);
+        this.input.keyboard.on('keydown-UP', event => {
+            this.keyboardDirection[1] = -1;
+        }, this);
+        this.input.keyboard.on('keyup-UP', event => {
+            this.keyboardDirection[1] = 0;
+        }, this);
+        this.input.keyboard.on('keydown-DOWN', event => {
+            this.keyboardDirection[1] = 1;
+        }, this);
+        this.input.keyboard.on('keyup-DOWN', event => {
+            this.keyboardDirection[1] = 0;
+        }, this);
+
+        this.tentacle = new Tentacle;
+
+        this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
+        this.add.existing(this.octopus);
     }
+
+    update() {
+        this.graphics.clear();
+        this.tentacle.draw(this.graphics);
+
+        /* ***********
+         * KEYBOARD CONTROLS
+         * ************ */
+        if (this.keyboardDirection[0] != 0 || this.keyboardDirection[1] != 0) {
+            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 200;
+            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 200;
+        }
+
+        this.octopus.UpdatePosition();
+    }
+}
+
+class Octopus extends Phaser.Physics.Arcade.Sprite {
+    desiredX: integer = 0;
+    desiredY: integer = 0;
+    lastUpdateTime: number;
+
+    constructor(scene: Phaser.Scene, x: number, y: number) {
+        super(scene, x, y, 'octopus');
+
+        this.originX = this.width / 2;
+        this.originY = this.height / 2;
+        this.scale = 0.2;
+        
+        this.desiredX = this.x;
+        this.desiredY = this.y;
+        this.lastUpdateTime = this.scene.time.now;
+    }
+
+    UpdatePosition() {
+
+        var deltaTime = this.scene.time.now - this.lastUpdateTime;
+        this.lastUpdateTime = this.scene.time.now;
+        var speed = OCTOPUSSPEED * deltaTime;
+
+        var moveDirection = new Phaser.Math.Vector2(this.desiredX - this.x, this.desiredY - this.y);
+        if (moveDirection.length() <= speed) {
+            return;
+        }
+        moveDirection.normalize();
+
+        // Move
+        if (Math.abs(this.desiredX - this.x) > speed) {
+            this.x += moveDirection.x * speed;
+        }
+
+        if (Math.abs(this.desiredY - this.y) > speed) {
+            this.y += moveDirection.y * speed;
+        }
+    }
+}
+
+class Tentacle {
+    Segments: TentacleSegment[] = [];
+    Start: Phaser.Math.Vector2;
+    End: Phaser.Math.Vector2;
+
+    constructor() {
+        this.Start = new Phaser.Math.Vector2(500, 500);
+        this.End = new Phaser.Math.Vector2(100, 500);
+
+        for (var i = 0; i < 10; i++) {
+            var newSegment = new TentacleSegment;
+            newSegment.Color = 0xFF0000 + (0x001900 * i);
+            newSegment.Location = new Phaser.Math.Vector2(500 - i * 50, 500);
+
+            if (i != 0) {
+                this.Segments[i - 1].After = newSegment;
+            }
+
+            this.Segments[i] = newSegment;
+        }
+    }
+
+    draw(graphics: Phaser.GameObjects.Graphics) {
+        for (var i = 0; i < 10; i++) {
+            var segment = this.Segments[i];
+
+            graphics.lineStyle(10, segment.Color);
+            var pointTo = this.End;
+            if (segment.After != null) {
+                pointTo = segment.After.Location;
+            }
+
+            graphics.lineBetween(segment.Location.x, segment.Location.y, pointTo.x, pointTo.y);
+        }
+    }
+}
+
+class TentacleSegment {
+    After: TentacleSegment;
+    Location: Phaser.Math.Vector2;
+    Rotation: number;
+    Length: number;
+    Color: number;
 }
 
 window.onload = () => {
