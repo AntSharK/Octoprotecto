@@ -19,6 +19,12 @@ var SimpleGame = /** @class */ (function () {
     function SimpleGame() {
         this.game = new Phaser.Game({
             type: Phaser.AUTO,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    debug: true
+                }
+            },
             parent: 'content',
             width: 1024,
             height: 768,
@@ -44,6 +50,7 @@ var TestScene = /** @class */ (function (_super) {
     TestScene.prototype.preload = function () {
         this.load.image('ocean', 'Assets/ocean.jpg');
         this.load.image('octopus', 'Assets/ghost.png');
+        this.load.image('fish', 'Assets/star.png');
     };
     TestScene.prototype.create = function () {
         var _this = this;
@@ -80,8 +87,33 @@ var TestScene = /** @class */ (function (_super) {
             _this.keyboardDirection[1] = 0;
         }, this);
         this.tentacle = new Tentacle;
+        this.octopi = this.physics.add.group({
+            defaultKey: 'octopus',
+            immovable: true,
+        });
         this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
         this.add.existing(this.octopus);
+        this.octopi.add(this.octopus);
+        this.octopus.setCircle(500, -this.octopus.originX, -this.octopus.originY);
+        this.fishes = this.physics.add.group({
+            defaultKey: 'fish',
+            immovable: false,
+            bounceX: 1,
+            bounceY: 1,
+            collideWorldBounds: true
+        });
+        for (var i = 0; i < 10; i++) {
+            var fish = new Fish(this, 200 + i * 50, 200 + i * 50);
+            this.add.existing(fish);
+            this.fishes.add(fish);
+            Phaser.Math.RandomXY(fish.body.velocity, 100);
+        }
+        this.physics.add.overlap(this.fishes, this.octopi, function (body1, body2) {
+            var octopus = body2;
+            var fish = body1;
+            fish.setTint(0xFF0000);
+            fish.octopusInRange = octopus;
+        });
     };
     TestScene.prototype.update = function () {
         this.graphics.clear();
@@ -94,9 +126,28 @@ var TestScene = /** @class */ (function (_super) {
             this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 200;
         }
         this.octopus.UpdatePosition();
+        this.fishes.children.each(function (f) { return f.ResetTint(); });
     };
     return TestScene;
 }(Phaser.Scene));
+var Fish = /** @class */ (function (_super) {
+    __extends(Fish, _super);
+    function Fish(scene, x, y) {
+        var _this = _super.call(this, scene, x, y, 'fish') || this;
+        _this.scale = 0.2;
+        _this.originX = _this.width / 2;
+        _this.originY = _this.height / 2;
+        return _this;
+    }
+    Fish.prototype.ResetTint = function () {
+        if (this.octopusInRange != null
+            && Phaser.Math.Distance.BetweenPoints(this.octopusInRange, this) > 150) {
+            this.clearTint();
+            this.octopusInRange = null;
+        }
+    };
+    return Fish;
+}(Phaser.Physics.Arcade.Sprite));
 var Octopus = /** @class */ (function (_super) {
     __extends(Octopus, _super);
     function Octopus(scene, x, y) {

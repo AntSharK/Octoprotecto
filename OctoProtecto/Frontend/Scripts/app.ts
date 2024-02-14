@@ -7,6 +7,13 @@ class SimpleGame {
     constructor() {
         this.game = new Phaser.Game({
             type: Phaser.AUTO,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    debug: true
+                }
+            },
+
             parent: 'content',
             width: 1024,
             height: 768,
@@ -27,11 +34,15 @@ class TestScene extends Phaser.Scene {
     tentacle: Tentacle;
     octopus: Octopus;
 
+    fishes: Phaser.Physics.Arcade.Group;
+    octopi: Phaser.Physics.Arcade.Group;
+
     keyboardDirection: [x: integer, y: integer] = [0, 0];
 
     preload() {
         this.load.image('ocean', 'Assets/ocean.jpg');
         this.load.image('octopus', 'Assets/ghost.png');
+        this.load.image('fish', 'Assets/star.png');
     }
 
     create() {
@@ -73,8 +84,39 @@ class TestScene extends Phaser.Scene {
 
         this.tentacle = new Tentacle;
 
+        this.octopi = this.physics.add.group({
+            defaultKey: 'octopus',
+            immovable: true,
+            
+        });
+
         this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
         this.add.existing(this.octopus);
+        this.octopi.add(this.octopus);
+        this.octopus.setCircle(500, -this.octopus.originX, -this.octopus.originY);
+
+        this.fishes = this.physics.add.group({
+            defaultKey: 'fish',
+            immovable: false,
+            bounceX: 1,
+            bounceY: 1,
+            collideWorldBounds: true
+        });
+
+        for (var i = 0; i < 10; i++) {
+            var fish = new Fish(this, 200 + i * 50, 200 + i * 50);
+            this.add.existing(fish);
+            this.fishes.add(fish);
+            Phaser.Math.RandomXY(fish.body.velocity, 100)
+        }
+
+        this.physics.add.overlap(this.fishes, this.octopi, (body1, body2) => {
+            var octopus = body2 as Octopus;
+            var fish = body1 as Fish;
+
+            fish.setTint(0xFF0000);
+            fish.octopusInRange = octopus;
+        });
     }
 
     update() {
@@ -90,6 +132,27 @@ class TestScene extends Phaser.Scene {
         }
 
         this.octopus.UpdatePosition();
+        this.fishes.children.each(f => (<Fish>f).ResetTint());
+    }
+}
+
+class Fish extends Phaser.Physics.Arcade.Sprite {
+    octopusInRange: Octopus;
+
+    constructor(scene: Phaser.Scene, x: number, y: number) {
+        super(scene, x, y, 'fish');
+
+        this.scale = 0.2;
+        this.originX = this.width / 2;
+        this.originY = this.height / 2;
+    }
+
+    ResetTint() {
+        if (this.octopusInRange != null
+            && Phaser.Math.Distance.BetweenPoints(this.octopusInRange, this) > 150) {
+            this.clearTint();
+            this.octopusInRange = null;
+        }
     }
 }
 
@@ -97,6 +160,7 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
     desiredX: integer = 0;
     desiredY: integer = 0;
     lastUpdateTime: number;
+
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, 'octopus');
@@ -111,7 +175,6 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
     }
 
     UpdatePosition() {
-
         var deltaTime = this.scene.time.now - this.lastUpdateTime;
         this.lastUpdateTime = this.scene.time.now;
         var speed = OCTOPUSSPEED * deltaTime;
