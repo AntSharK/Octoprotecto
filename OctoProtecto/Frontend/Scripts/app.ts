@@ -1,6 +1,7 @@
 /// <reference path="../Lib/phaser.d.ts"/>
 
 const OCTOPUSSPEED = 0.3;
+const FISHCIRCLE = 600;
 class SimpleGame {
 
     game: Phaser.Game;
@@ -93,7 +94,7 @@ class TestScene extends Phaser.Scene {
         this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
         this.add.existing(this.octopus);
         this.octopi.add(this.octopus);
-        this.octopus.setCircle(500, -this.octopus.originX, -this.octopus.originY);
+        this.octopus.setCircle(500, this.octopus.originX - 500, this.octopus.originY - 500);
 
         this.fishes = this.physics.add.group({
             defaultKey: 'fish',
@@ -103,19 +104,22 @@ class TestScene extends Phaser.Scene {
             collideWorldBounds: true
         });
 
-        for (var i = 0; i < 10; i++) {
-            var fish = new Fish(this, 200 + i * 50, 200 + i * 50);
+        for (var i = 0; i < 20; i++) {
+            var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
             this.add.existing(fish);
             this.fishes.add(fish);
-            Phaser.Math.RandomXY(fish.body.velocity, 100)
+            Phaser.Math.RandomXY(fish.body.velocity, 100);
+
+            fish.setCircle(FISHCIRCLE, fish.originX - FISHCIRCLE, fish.originY - FISHCIRCLE);
         }
 
-        this.physics.add.overlap(this.fishes, this.octopi, (body1, body2) => {
-            var octopus = body2 as Octopus;
-            var fish = body1 as Fish;
-
-            fish.setTint(0xFF0000);
-            fish.octopusInRange = octopus;
+        this.physics.add.overlap(this.fishes, this.fishes, (body1, body2) => {
+            var fish2 = body2 as Fish;
+            var fish1 = body1 as Fish;
+            if (!(fish2.uniqueName in fish1.fishesInRange)) {
+                fish2.fishesInRange[fish1.uniqueName] = fish1;
+                fish1.fishesInRange[fish2.uniqueName] = fish2;
+            }
         });
     }
 
@@ -132,26 +136,46 @@ class TestScene extends Phaser.Scene {
         }
 
         this.octopus.UpdatePosition();
-        this.fishes.children.each(f => (<Fish>f).ResetTint());
+        this.fishes.children.each(f => (<Fish>f).UpdateDraw(this.graphics));
     }
 }
 
 class Fish extends Phaser.Physics.Arcade.Sprite {
-    octopusInRange: Octopus;
+    fishesInRange: { [id: string]: Fish } = {};
+    focusedFish: Fish;
+    uniqueName: string;
 
-    constructor(scene: Phaser.Scene, x: number, y: number) {
+    constructor(uniqueName: string, scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, 'fish');
 
+        this.uniqueName = uniqueName;
         this.scale = 0.2;
         this.originX = this.width / 2;
         this.originY = this.height / 2;
     }
 
-    ResetTint() {
-        if (this.octopusInRange != null
-            && Phaser.Math.Distance.BetweenPoints(this.octopusInRange, this) > 150) {
-            this.clearTint();
-            this.octopusInRange = null;
+    UpdateDraw(graphics: Phaser.GameObjects.Graphics) {
+        var fishIdx = 3;
+        for (let key in this.fishesInRange) {
+            graphics.lineStyle(fishIdx, 0xff0000);
+            let connectedFish = this.fishesInRange[key];
+
+            if (this.focusedFish == null) {
+                this.focusedFish = connectedFish;
+            }
+
+            if (this.focusedFish === connectedFish) {
+                graphics.lineStyle(fishIdx * 3, 0x00ff00);
+            }
+            fishIdx++;
+
+            var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
+            graphics.lineBetween(this.x, this.y, connectedFish.x, connectedFish.y);
+            if (distance >= FISHCIRCLE/2 + 10) {
+                delete this.fishesInRange[key];
+
+                if (this.focusedFish.uniqueName == key) { this.focusedFish = null; }
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 var OCTOPUSSPEED = 0.3;
+var FISHCIRCLE = 600;
 var SimpleGame = /** @class */ (function () {
     function SimpleGame() {
         this.game = new Phaser.Game({
@@ -94,7 +95,7 @@ var TestScene = /** @class */ (function (_super) {
         this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
         this.add.existing(this.octopus);
         this.octopi.add(this.octopus);
-        this.octopus.setCircle(500, -this.octopus.originX, -this.octopus.originY);
+        this.octopus.setCircle(500, this.octopus.originX - 500, this.octopus.originY - 500);
         this.fishes = this.physics.add.group({
             defaultKey: 'fish',
             immovable: false,
@@ -102,20 +103,24 @@ var TestScene = /** @class */ (function (_super) {
             bounceY: 1,
             collideWorldBounds: true
         });
-        for (var i = 0; i < 10; i++) {
-            var fish = new Fish(this, 200 + i * 50, 200 + i * 50);
+        for (var i = 0; i < 20; i++) {
+            var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
             this.add.existing(fish);
             this.fishes.add(fish);
             Phaser.Math.RandomXY(fish.body.velocity, 100);
+            fish.setCircle(FISHCIRCLE, fish.originX - FISHCIRCLE, fish.originY - FISHCIRCLE);
         }
-        this.physics.add.overlap(this.fishes, this.octopi, function (body1, body2) {
-            var octopus = body2;
-            var fish = body1;
-            fish.setTint(0xFF0000);
-            fish.octopusInRange = octopus;
+        this.physics.add.overlap(this.fishes, this.fishes, function (body1, body2) {
+            var fish2 = body2;
+            var fish1 = body1;
+            if (!(fish2.uniqueName in fish1.fishesInRange)) {
+                fish2.fishesInRange[fish1.uniqueName] = fish1;
+                fish1.fishesInRange[fish2.uniqueName] = fish2;
+            }
         });
     };
     TestScene.prototype.update = function () {
+        var _this = this;
         this.graphics.clear();
         this.tentacle.draw(this.graphics);
         /* ***********
@@ -126,24 +131,41 @@ var TestScene = /** @class */ (function (_super) {
             this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 200;
         }
         this.octopus.UpdatePosition();
-        this.fishes.children.each(function (f) { return f.ResetTint(); });
+        this.fishes.children.each(function (f) { return f.UpdateDraw(_this.graphics); });
     };
     return TestScene;
 }(Phaser.Scene));
 var Fish = /** @class */ (function (_super) {
     __extends(Fish, _super);
-    function Fish(scene, x, y) {
+    function Fish(uniqueName, scene, x, y) {
         var _this = _super.call(this, scene, x, y, 'fish') || this;
+        _this.fishesInRange = {};
+        _this.uniqueName = uniqueName;
         _this.scale = 0.2;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
         return _this;
     }
-    Fish.prototype.ResetTint = function () {
-        if (this.octopusInRange != null
-            && Phaser.Math.Distance.BetweenPoints(this.octopusInRange, this) > 150) {
-            this.clearTint();
-            this.octopusInRange = null;
+    Fish.prototype.UpdateDraw = function (graphics) {
+        var fishIdx = 3;
+        for (var key in this.fishesInRange) {
+            graphics.lineStyle(fishIdx, 0xff0000);
+            var connectedFish = this.fishesInRange[key];
+            if (this.focusedFish == null) {
+                this.focusedFish = connectedFish;
+            }
+            if (this.focusedFish === connectedFish) {
+                graphics.lineStyle(fishIdx * 3, 0x00ff00);
+            }
+            fishIdx++;
+            var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
+            graphics.lineBetween(this.x, this.y, connectedFish.x, connectedFish.y);
+            if (distance >= FISHCIRCLE / 2 + 10) {
+                delete this.fishesInRange[key];
+                if (this.focusedFish.uniqueName == key) {
+                    this.focusedFish = null;
+                }
+            }
         }
     };
     return Fish;
