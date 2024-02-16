@@ -1,7 +1,6 @@
 /// <reference path="../Lib/phaser.d.ts"/>
 
 const OCTOPUSSPEED = 0.3;
-const FISHCIRCLE = 600;
 class SimpleGame {
 
     game: Phaser.Game;
@@ -36,6 +35,7 @@ class TestScene extends Phaser.Scene {
 
     fishes: Phaser.Physics.Arcade.Group;
     octopi: Phaser.Physics.Arcade.Group;
+    weapons: Phaser.Physics.Arcade.Group;
 
     keyboardDirection: [x: integer, y: integer] = [0, 0];
 
@@ -43,6 +43,7 @@ class TestScene extends Phaser.Scene {
         this.load.image('ocean', 'Assets/ocean.jpg');
         this.load.image('octopus', 'Assets/ghost.png');
         this.load.image('fish', 'Assets/star.png');
+        this.load.image('dummy', 'Assets/dummy.png');
     }
 
     create() {
@@ -52,7 +53,6 @@ class TestScene extends Phaser.Scene {
         background.displayWidth = this.game.canvas.width;
         background.displayHeight = this.game.canvas.height;
         background.depth = -1;
-
 
         /* ***********
          * KEYBOARD CONTROLS
@@ -84,14 +84,8 @@ class TestScene extends Phaser.Scene {
 
         this.octopi = this.physics.add.group({
             defaultKey: 'octopus',
-            immovable: true,
-            
+            immovable: true,            
         });
-
-        this.octopus = new Octopus(this, this.game.canvas.width / 2, this.game.canvas.height / 2);
-        this.add.existing(this.octopus);
-        this.octopi.add(this.octopus);
-        this.octopus.setCircle(500, this.octopus.originX - 500, this.octopus.originY - 500);
 
         this.fishes = this.physics.add.group({
             defaultKey: 'fish',
@@ -101,21 +95,32 @@ class TestScene extends Phaser.Scene {
             collideWorldBounds: true
         });
 
+        this.weapons = this.physics.add.group({
+            defaultKey: 'dummy',
+            immovable: true
+        });
+
+        this.octopus = new Octopus("testOctopus",
+            this,
+            this.game.canvas.width / 2,
+            this.game.canvas.height / 2,
+            this.octopi,
+            this.weapons);
+
         for (var i = 0; i < 20; i++) {
             var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
             this.add.existing(fish);
             this.fishes.add(fish);
             Phaser.Math.RandomXY(fish.body.velocity, 100);
 
-            fish.setCircle(FISHCIRCLE, fish.originX - FISHCIRCLE, fish.originY - FISHCIRCLE);
+            //fish.setCircle(FISHCIRCLE, fish.originX - FISHCIRCLE, fish.originY - FISHCIRCLE);
         }
 
-        this.physics.add.overlap(this.fishes, this.fishes, (body1, body2) => {
-            var fish2 = body2 as Fish;
-            var fish1 = body1 as Fish;
-            if (!(fish2.uniqueName in fish1.fishesInRange)) {
-                fish2.fishesInRange[fish1.uniqueName] = fish1;
-                fish1.fishesInRange[fish2.uniqueName] = fish2;
+        this.physics.add.overlap(this.fishes, this.weapons, (body1, body2) => {
+            var weapon = body2 as Weapon;
+            var fish = body1 as Fish;
+            if (!(fish.uniqueName in weapon.fishesInRange)) {
+                weapon.fishesInRange[fish.uniqueName] = fish;
             }
         });
     }
@@ -133,14 +138,11 @@ class TestScene extends Phaser.Scene {
             this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 50;
         }
 
-        this.octopus.UpdatePosition();
-        this.fishes.children.each(f => (<Fish>f).UpdateDraw(this.graphics));
+        this.octopus.UpdateOctopus(this.graphics);
     }
 }
 
 class Fish extends Phaser.Physics.Arcade.Sprite {
-    fishesInRange: { [id: string]: Fish } = {};
-    focusedFish: Fish;
     uniqueName: string;
 
     constructor(uniqueName: string, scene: Phaser.Scene, x: number, y: number) {
@@ -151,8 +153,33 @@ class Fish extends Phaser.Physics.Arcade.Sprite {
         this.originX = this.width / 2;
         this.originY = this.height / 2;
     }
+}
 
-    UpdateDraw(graphics: Phaser.GameObjects.Graphics) {
+class Weapon extends Phaser.Physics.Arcade.Sprite {
+    weaponOwner: Octopus;
+    offsetX: number = 0;
+    offsetY: number = 0;
+    range: number = 0;
+
+    fishesInRange: { [id: string]: Fish } = {};
+    focusedFish: Fish;
+
+    constructor(octopus: Octopus, offsetX: number, offsetY: number, range: number,
+        weaponsPhysicsGroup: Phaser.Physics.Arcade.Group) {
+        super(octopus.scene, octopus.x + offsetX, octopus.y + offsetY, 'dummy');
+
+        this.weaponOwner = octopus;
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        this.range = range;
+
+        weaponsPhysicsGroup.add(this);
+        this.setCircle(range, -range, -range);
+    }
+
+    UpdateWeapon(graphics: Phaser.GameObjects.Graphics) {
+        this.setPosition(this.weaponOwner.x + this.offsetX, this.weaponOwner.y + this.offsetY);
+
         var fishIdx = 3;
         for (let key in this.fishesInRange) {
             graphics.lineStyle(fishIdx, 0xff0000);
@@ -169,7 +196,7 @@ class Fish extends Phaser.Physics.Arcade.Sprite {
 
             var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
             graphics.lineBetween(this.x, this.y, connectedFish.x, connectedFish.y);
-            if (distance >= FISHCIRCLE/2 + 10) {
+            if (distance >= this.range + 10) {
                 delete this.fishesInRange[key];
 
                 if (this.focusedFish.uniqueName == key) { this.focusedFish = null; }
@@ -182,11 +209,15 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
     desiredX: integer = 0;
     desiredY: integer = 0;
     lastUpdateTime: number;
+    name: string;
+    weapons: Weapon[] = [];
 
-
-    constructor(scene: Phaser.Scene, x: number, y: number) {
+    constructor(name: string, scene: Phaser.Scene, x: number, y: number,
+        octopiPhysicsGroup: Phaser.Physics.Arcade.Group,
+        weaponsPhysicsGroup: Phaser.Physics.Arcade.Group) {
         super(scene, x, y, 'octopus');
 
+        this.name = name;
         this.originX = this.width / 2;
         this.originY = this.height / 2;
         this.scale = 0.2;
@@ -194,9 +225,21 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
         this.desiredX = this.x;
         this.desiredY = this.y;
         this.lastUpdateTime = this.scene.time.now;
+
+        for (var i = 0; i < 4; i++) {
+            var w1 = new Weapon(this, 100, i * 30, 100, weaponsPhysicsGroup);
+            var w2 = new Weapon(this, -100, i * 30, 100, weaponsPhysicsGroup);
+            this.weapons.push(w1, w2);
+        }
+
+        scene.add.existing(this);
+        octopiPhysicsGroup.add(this);
+        this.setCircle(500, this.originX - 500, this.originY - 500);
     }
 
-    UpdatePosition() {
+    UpdateOctopus(graphics: Phaser.GameObjects.Graphics) {
+        this.weapons.forEach(w => w.UpdateWeapon(graphics));
+
         var deltaTime = this.scene.time.now - this.lastUpdateTime;
         this.lastUpdateTime = this.scene.time.now;
         var speed = OCTOPUSSPEED * deltaTime;
