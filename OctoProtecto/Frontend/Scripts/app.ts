@@ -32,7 +32,6 @@ class SimpleGame {
 
 class TestScene extends Phaser.Scene {
     graphics: Phaser.GameObjects.Graphics;
-    tentacle: Tentacle;
     octopus: Octopus;
 
     fishes: Phaser.Physics.Arcade.Group;
@@ -83,8 +82,6 @@ class TestScene extends Phaser.Scene {
             this.keyboardDirection[1] = 0;
         }, this);
 
-        this.tentacle = new Tentacle;
-
         this.octopi = this.physics.add.group({
             defaultKey: 'octopus',
             immovable: true,
@@ -125,14 +122,15 @@ class TestScene extends Phaser.Scene {
 
     update() {
         this.graphics.clear();
-        this.tentacle.draw(this.graphics);
 
         /* ***********
          * KEYBOARD CONTROLS
          * ************ */
         if (this.keyboardDirection[0] != 0 || this.keyboardDirection[1] != 0) {
-            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 200;
-            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 200;
+
+            // Ideally, running at 30FPS, we'll have to move at least OCTOPUSSPEED * 33
+            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 50;
+            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 50;
         }
 
         this.octopus.UpdatePosition();
@@ -205,6 +203,8 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
 
         var moveDirection = new Phaser.Math.Vector2(this.desiredX - this.x, this.desiredY - this.y);
         if (moveDirection.length() <= speed) {
+            this.x = this.desiredX;
+            this.y = this.desiredY;
             return;
         }
         moveDirection.normalize();
@@ -218,51 +218,6 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
             this.y += moveDirection.y * speed;
         }
     }
-}
-
-class Tentacle {
-    Segments: TentacleSegment[] = [];
-    Start: Phaser.Math.Vector2;
-    End: Phaser.Math.Vector2;
-
-    constructor() {
-        this.Start = new Phaser.Math.Vector2(500, 500);
-        this.End = new Phaser.Math.Vector2(100, 500);
-
-        for (var i = 0; i < 10; i++) {
-            var newSegment = new TentacleSegment;
-            newSegment.Color = 0xFF0000 + (0x001900 * i);
-            newSegment.Location = new Phaser.Math.Vector2(500 - i * 50, 500);
-
-            if (i != 0) {
-                this.Segments[i - 1].After = newSegment;
-            }
-
-            this.Segments[i] = newSegment;
-        }
-    }
-
-    draw(graphics: Phaser.GameObjects.Graphics) {
-        for (var i = 0; i < 10; i++) {
-            var segment = this.Segments[i];
-
-            graphics.lineStyle(10, segment.Color);
-            var pointTo = this.End;
-            if (segment.After != null) {
-                pointTo = segment.After.Location;
-            }
-
-            graphics.lineBetween(segment.Location.x, segment.Location.y, pointTo.x, pointTo.y);
-        }
-    }
-}
-
-class TentacleSegment {
-    After: TentacleSegment;
-    Location: Phaser.Math.Vector2;
-    Rotation: number;
-    Length: number;
-    Color: number;
 }
 
 window.onload = () => {

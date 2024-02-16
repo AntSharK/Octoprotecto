@@ -87,7 +87,6 @@ var TestScene = /** @class */ (function (_super) {
         this.input.keyboard.on('keyup-DOWN', function (event) {
             _this.keyboardDirection[1] = 0;
         }, this);
-        this.tentacle = new Tentacle;
         this.octopi = this.physics.add.group({
             defaultKey: 'octopus',
             immovable: true,
@@ -122,13 +121,12 @@ var TestScene = /** @class */ (function (_super) {
     TestScene.prototype.update = function () {
         var _this = this;
         this.graphics.clear();
-        this.tentacle.draw(this.graphics);
         /* ***********
          * KEYBOARD CONTROLS
          * ************ */
         if (this.keyboardDirection[0] != 0 || this.keyboardDirection[1] != 0) {
-            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 200;
-            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 200;
+            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 100;
+            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 100;
         }
         this.octopus.UpdatePosition();
         this.fishes.children.each(function (f) { return f.UpdateDraw(_this.graphics); });
@@ -203,39 +201,6 @@ var Octopus = /** @class */ (function (_super) {
     };
     return Octopus;
 }(Phaser.Physics.Arcade.Sprite));
-var Tentacle = /** @class */ (function () {
-    function Tentacle() {
-        this.Segments = [];
-        this.Start = new Phaser.Math.Vector2(500, 500);
-        this.End = new Phaser.Math.Vector2(100, 500);
-        for (var i = 0; i < 10; i++) {
-            var newSegment = new TentacleSegment;
-            newSegment.Color = 0xFF0000 + (0x001900 * i);
-            newSegment.Location = new Phaser.Math.Vector2(500 - i * 50, 500);
-            if (i != 0) {
-                this.Segments[i - 1].After = newSegment;
-            }
-            this.Segments[i] = newSegment;
-        }
-    }
-    Tentacle.prototype.draw = function (graphics) {
-        for (var i = 0; i < 10; i++) {
-            var segment = this.Segments[i];
-            graphics.lineStyle(10, segment.Color);
-            var pointTo = this.End;
-            if (segment.After != null) {
-                pointTo = segment.After.Location;
-            }
-            graphics.lineBetween(segment.Location.x, segment.Location.y, pointTo.x, pointTo.y);
-        }
-    };
-    return Tentacle;
-}());
-var TentacleSegment = /** @class */ (function () {
-    function TentacleSegment() {
-    }
-    return TentacleSegment;
-}());
 window.onload = function () {
     var game = new SimpleGame();
 };
