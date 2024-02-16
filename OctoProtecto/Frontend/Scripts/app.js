@@ -122,6 +122,11 @@ var TestScene = /** @class */ (function (_super) {
                 weapon.fishesInRange[fish.uniqueName] = fish;
             }
         });
+        this.physics.add.overlap(this.fishes, this.bullets, function (body1, body2) {
+            var bullet = body2;
+            var fish = body1;
+            bullet.ApplyHit(fish);
+        });
     };
     TestScene.prototype.update = function () {
         this.graphics.clear();
@@ -141,6 +146,7 @@ var Fish = /** @class */ (function (_super) {
     __extends(Fish, _super);
     function Fish(uniqueName, scene, x, y) {
         var _this = _super.call(this, scene, x, y, 'fish') || this;
+        _this.hp = 10;
         _this.uniqueName = uniqueName;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
@@ -152,17 +158,38 @@ var Bullet = /** @class */ (function (_super) {
     __extends(Bullet, _super);
     function Bullet(weapon, bulletPhysicsGroup) {
         var _this = _super.call(this, weapon.scene, weapon.x, weapon.y, 'bullet') || this;
-        _this.speed = 500;
+        _this.speed = 350;
         _this.bulletWeapon = weapon;
         bulletPhysicsGroup.add(_this);
         _this.scene.add.existing(_this);
         return _this;
     }
+    Bullet.prototype.ApplyHit = function (fish) {
+        var _a;
+        fish.hp--;
+        fish.setAlpha(0.5 + 0.05 * fish.hp);
+        if (fish.hp <= 0) {
+            if (((_a = this.bulletWeapon.focusedFish) === null || _a === void 0 ? void 0 : _a.uniqueName) == fish.uniqueName) {
+                this.bulletWeapon.focusedFish = null;
+            }
+            if (fish.uniqueName in this.bulletWeapon.fishesInRange) {
+                delete this.bulletWeapon.fishesInRange[fish.uniqueName];
+            }
+            fish.destroy(true);
+        }
+        this.destroy(true);
+    };
     Bullet.prototype.FireToFish = function (focusedFish) {
+        var _this = this;
         this.moveDirection = new Phaser.Math.Vector2(focusedFish.x - this.x, focusedFish.y - this.y);
         this.moveDirection.normalize();
         this.setRotation(Math.atan2(this.moveDirection.y, this.moveDirection.x));
         this.setVelocity(this.moveDirection.x * this.speed, this.moveDirection.y * this.speed);
+        this.scene.time.addEvent({
+            delay: this.bulletWeapon.range / this.speed * 1000,
+            callback: function () { return _this.destroy(true); },
+            callbackScope: this
+        });
     };
     return Bullet;
 }(Phaser.Physics.Arcade.Sprite));
@@ -175,7 +202,7 @@ var Weapon = /** @class */ (function (_super) {
         _this.range = 0;
         _this.fishesInRange = {};
         _this.nextFireTime = 0;
-        _this.fireRate = 400;
+        _this.fireRate = 200;
         _this.weaponOwner = octopus;
         _this.offsetX = offsetX;
         _this.offsetY = offsetY;
@@ -191,9 +218,11 @@ var Weapon = /** @class */ (function (_super) {
         bullet.FireToFish(focusedFish);
     };
     Weapon.prototype.UpdateWeapon = function (graphics) {
+        var _a;
         this.setPosition(this.weaponOwner.x + this.offsetX, this.weaponOwner.y + this.offsetY);
         if (this.nextFireTime < this.scene.time.now
-            && this.focusedFish != null) {
+            && this.focusedFish != null
+            && this.focusedFish.active) {
             this.nextFireTime += this.fireRate;
             if (this.nextFireTime < this.scene.time.now) {
                 this.nextFireTime = this.scene.time.now + this.fireRate;
@@ -203,7 +232,7 @@ var Weapon = /** @class */ (function (_super) {
         for (var key in this.fishesInRange) {
             var connectedFish = this.fishesInRange[key];
             var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
-            if (this.focusedFish == null) {
+            if (this.focusedFish == null || !this.focusedFish.active) {
                 this.focusedFish = connectedFish;
             }
             /* DEBUGGING FOR TARGET ACQUISITION
@@ -218,7 +247,7 @@ var Weapon = /** @class */ (function (_super) {
             */
             if (distance >= this.range + 10) {
                 delete this.fishesInRange[key];
-                if (this.focusedFish.uniqueName == key) {
+                if (((_a = this.focusedFish) === null || _a === void 0 ? void 0 : _a.uniqueName) == key) {
                     this.focusedFish = null;
                 }
             }
@@ -240,8 +269,8 @@ var Octopus = /** @class */ (function (_super) {
         _this.desiredY = _this.y;
         _this.lastUpdateTime = _this.scene.time.now;
         for (var i = 0; i < 1; i++) {
-            var w1 = new Weapon(_this, 100, i * 30, 100, weaponsPhysicsGroup, bulletPhysicsGroup);
-            var w2 = new Weapon(_this, -100, i * 30, 100, weaponsPhysicsGroup, bulletPhysicsGroup);
+            var w1 = new Weapon(_this, 100, i * 30, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
+            var w2 = new Weapon(_this, -100, i * 30, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
             _this.weapons.push(w1, w2);
         }
         scene.add.existing(_this);
