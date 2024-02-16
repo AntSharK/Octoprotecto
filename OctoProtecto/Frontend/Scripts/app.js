@@ -52,6 +52,7 @@ var TestScene = /** @class */ (function (_super) {
         this.load.image('octopus', 'Assets/ghost.png');
         this.load.image('fish', 'Assets/star.png');
         this.load.image('dummy', 'Assets/dummy.png');
+        this.load.image('bullet', 'Assets/bullet.png');
     };
     TestScene.prototype.create = function () {
         var _this = this;
@@ -102,7 +103,11 @@ var TestScene = /** @class */ (function (_super) {
             defaultKey: 'dummy',
             immovable: true
         });
-        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons);
+        this.bullets = this.physics.add.group({
+            defaultKey: 'bullet',
+            immovable: false
+        });
+        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets);
         for (var i = 0; i < 20; i++) {
             var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
             this.add.existing(fish);
@@ -137,44 +142,80 @@ var Fish = /** @class */ (function (_super) {
     function Fish(uniqueName, scene, x, y) {
         var _this = _super.call(this, scene, x, y, 'fish') || this;
         _this.uniqueName = uniqueName;
-        _this.scale = 0.2;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
         return _this;
     }
     return Fish;
 }(Phaser.Physics.Arcade.Sprite));
+var Bullet = /** @class */ (function (_super) {
+    __extends(Bullet, _super);
+    function Bullet(weapon, bulletPhysicsGroup) {
+        var _this = _super.call(this, weapon.scene, weapon.x, weapon.y, 'bullet') || this;
+        _this.speed = 500;
+        _this.bulletWeapon = weapon;
+        bulletPhysicsGroup.add(_this);
+        _this.scene.add.existing(_this);
+        return _this;
+    }
+    Bullet.prototype.FireToFish = function (focusedFish) {
+        this.moveDirection = new Phaser.Math.Vector2(focusedFish.x - this.x, focusedFish.y - this.y);
+        this.moveDirection.normalize();
+        this.setRotation(Math.atan2(this.moveDirection.y, this.moveDirection.x));
+        this.setVelocity(this.moveDirection.x * this.speed, this.moveDirection.y * this.speed);
+    };
+    return Bullet;
+}(Phaser.Physics.Arcade.Sprite));
 var Weapon = /** @class */ (function (_super) {
     __extends(Weapon, _super);
-    function Weapon(octopus, offsetX, offsetY, range, weaponsPhysicsGroup) {
+    function Weapon(octopus, offsetX, offsetY, range, weaponsPhysicsGroup, bulletPhysicsGroup) {
         var _this = _super.call(this, octopus.scene, octopus.x + offsetX, octopus.y + offsetY, 'dummy') || this;
         _this.offsetX = 0;
         _this.offsetY = 0;
         _this.range = 0;
         _this.fishesInRange = {};
+        _this.nextFireTime = 0;
+        _this.fireRate = 400;
         _this.weaponOwner = octopus;
         _this.offsetX = offsetX;
         _this.offsetY = offsetY;
         _this.range = range;
+        _this.setVisible(false);
         weaponsPhysicsGroup.add(_this);
         _this.setCircle(range, -range, -range);
+        _this.bulletPhysicsGroup = bulletPhysicsGroup;
         return _this;
     }
+    Weapon.prototype.FireWeapon = function (focusedFish) {
+        var bullet = new Bullet(this, this.bulletPhysicsGroup);
+        bullet.FireToFish(focusedFish);
+    };
     Weapon.prototype.UpdateWeapon = function (graphics) {
         this.setPosition(this.weaponOwner.x + this.offsetX, this.weaponOwner.y + this.offsetY);
-        var fishIdx = 3;
+        if (this.nextFireTime < this.scene.time.now
+            && this.focusedFish != null) {
+            this.nextFireTime += this.fireRate;
+            if (this.nextFireTime < this.scene.time.now) {
+                this.nextFireTime = this.scene.time.now + this.fireRate;
+            }
+            this.FireWeapon(this.focusedFish);
+        }
         for (var key in this.fishesInRange) {
-            graphics.lineStyle(fishIdx, 0xff0000);
             var connectedFish = this.fishesInRange[key];
+            var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
             if (this.focusedFish == null) {
                 this.focusedFish = connectedFish;
             }
+            /* DEBUGGING FOR TARGET ACQUISITION
+            graphics.lineStyle(fishIdx, 0xff0000);
+
             if (this.focusedFish === connectedFish) {
                 graphics.lineStyle(fishIdx * 3, 0x00ff00);
             }
             fishIdx++;
-            var distance = Phaser.Math.Distance.BetweenPoints(this, connectedFish);
+
             graphics.lineBetween(this.x, this.y, connectedFish.x, connectedFish.y);
+            */
             if (distance >= this.range + 10) {
                 delete this.fishesInRange[key];
                 if (this.focusedFish.uniqueName == key) {
@@ -187,7 +228,7 @@ var Weapon = /** @class */ (function (_super) {
 }(Phaser.Physics.Arcade.Sprite));
 var Octopus = /** @class */ (function (_super) {
     __extends(Octopus, _super);
-    function Octopus(name, scene, x, y, octopiPhysicsGroup, weaponsPhysicsGroup) {
+    function Octopus(name, scene, x, y, octopiPhysicsGroup, weaponsPhysicsGroup, bulletPhysicsGroup) {
         var _this = _super.call(this, scene, x, y, 'octopus') || this;
         _this.desiredX = 0;
         _this.desiredY = 0;
@@ -195,18 +236,17 @@ var Octopus = /** @class */ (function (_super) {
         _this.name = name;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
-        _this.scale = 0.2;
         _this.desiredX = _this.x;
         _this.desiredY = _this.y;
         _this.lastUpdateTime = _this.scene.time.now;
-        for (var i = 0; i < 4; i++) {
-            var w1 = new Weapon(_this, 100, i * 30, 100, weaponsPhysicsGroup);
-            var w2 = new Weapon(_this, -100, i * 30, 100, weaponsPhysicsGroup);
+        for (var i = 0; i < 1; i++) {
+            var w1 = new Weapon(_this, 100, i * 30, 100, weaponsPhysicsGroup, bulletPhysicsGroup);
+            var w2 = new Weapon(_this, -100, i * 30, 100, weaponsPhysicsGroup, bulletPhysicsGroup);
             _this.weapons.push(w1, w2);
         }
         scene.add.existing(_this);
         octopiPhysicsGroup.add(_this);
-        _this.setCircle(500, _this.originX - 500, _this.originY - 500);
+        _this.setCircle(125, _this.originX - 125, _this.originY - 125);
         return _this;
     }
     Octopus.prototype.UpdateOctopus = function (graphics) {
