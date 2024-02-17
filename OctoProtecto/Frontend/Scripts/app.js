@@ -297,6 +297,19 @@ var Octopus = /** @class */ (function (_super) {
         if (Math.abs(this.desiredY - this.y) > speed) {
             this.y += moveDirection.y * speed;
         }
+        // Clamp on bounds
+        if (this.x + this.width / 2 > this.scene.game.canvas.width) {
+            this.x = this.scene.game.canvas.width - this.width / 2;
+        }
+        if (this.x - this.width / 2 < 0) {
+            this.x = this.width / 2;
+        }
+        if (this.y + this.height / 2 > this.scene.game.canvas.height) {
+            this.y = this.scene.game.canvas.height - this.height / 2;
+        }
+        if (this.y - this.height / 2 < 0) {
+            this.y = this.height / 2;
+        }
     };
     return Octopus;
 }(Phaser.Physics.Arcade.Sprite));

@@ -173,7 +173,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     bulletWeapon: Weapon;
     target: Fish;
     moveDirection: Phaser.Math.Vector2;
-    speed: number = 350;
+    speed: number = 500;
 
     constructor(weapon: Weapon,
         bulletPhysicsGroup: Phaser.Physics.Arcade.Group) {
@@ -227,7 +227,7 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     bulletPhysicsGroup: Phaser.Physics.Arcade.Group;
 
     nextFireTime: number = 0;
-    fireRate: number = 200;
+    fireRate: number = 300;
 
     constructor(octopus: Octopus, offsetX: number, offsetY: number, range: number,
         weaponsPhysicsGroup: Phaser.Physics.Arcade.Group,
@@ -344,6 +344,20 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
 
         if (Math.abs(this.desiredY - this.y) > speed) {
             this.y += moveDirection.y * speed;
+        }
+
+        // Clamp on bounds
+        if (this.x + this.width / 2 > this.scene.game.canvas.width) {
+            this.x = this.scene.game.canvas.width - this.width / 2; 
+        }
+        if (this.x - this.width / 2 < 0) {
+            this.x = this.width / 2;
+        }
+        if (this.y + this.height / 2 > this.scene.game.canvas.height) {
+            this.y = this.scene.game.canvas.height - this.height / 2;
+        }
+        if (this.y - this.height / 2 < 0) {
+            this.y = this.height / 2;
         }
     }
 }
