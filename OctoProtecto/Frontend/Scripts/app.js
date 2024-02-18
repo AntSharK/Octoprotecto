@@ -14,7 +14,6 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-var OCTOPUSSPEED = 0.3;
 var SimpleGame = /** @class */ (function () {
     function SimpleGame() {
         this.game = new Phaser.Game({
@@ -22,7 +21,7 @@ var SimpleGame = /** @class */ (function () {
             physics: {
                 default: 'arcade',
                 arcade: {
-                    debug: true
+                //debug: true
                 }
             },
             parent: 'content',
@@ -53,6 +52,8 @@ var TestScene = /** @class */ (function (_super) {
         this.load.image('fish', 'Assets/star.png');
         this.load.image('dummy', 'Assets/dummy.png');
         this.load.image('bullet', 'Assets/bullet.png');
+        this.load.image('fin', 'Assets/fin.png');
+        this.load.spritesheet('explosion', '/Assets/explosionframes.png', { frameWidth: 128, frameHeight: 128 });
     };
     TestScene.prototype.create = function () {
         var _this = this;
@@ -61,6 +62,12 @@ var TestScene = /** @class */ (function (_super) {
         background.displayWidth = this.game.canvas.width;
         background.displayHeight = this.game.canvas.height;
         background.depth = -1;
+        this.anims.create({
+            key: 'explosion_anim',
+            frames: this.anims.generateFrameNumbers('explosion', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+            frameRate: 20,
+            repeat: 0
+        });
         /* ***********
          * KEYBOARD CONTROLS
          * ************ */
@@ -108,6 +115,7 @@ var TestScene = /** @class */ (function (_super) {
             immovable: false
         });
         this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets);
+        this.octopus.tint = 0xFF00FF;
         for (var i = 0; i < 20; i++) {
             var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
             this.add.existing(fish);
@@ -134,9 +142,9 @@ var TestScene = /** @class */ (function (_super) {
          * KEYBOARD CONTROLS
          * ************ */
         if (this.keyboardDirection[0] != 0 || this.keyboardDirection[1] != 0) {
-            // Ideally, running at 30FPS, we'll have to move at least OCTOPUSSPEED * 33
-            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * OCTOPUSSPEED * 50;
-            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * OCTOPUSSPEED * 50;
+            // Ideally, running at 30FPS, we'll have to move at least OCTOPUSSPEED * 33 per update cycle since it's 33ms per cycle
+            this.octopus.desiredX = this.octopus.x + this.keyboardDirection[0] * this.octopus.speed * 50;
+            this.octopus.desiredY = this.octopus.y + this.keyboardDirection[1] * this.octopus.speed * 50;
         }
         this.octopus.UpdateOctopus(this.graphics);
     };
@@ -158,7 +166,7 @@ var Bullet = /** @class */ (function (_super) {
     __extends(Bullet, _super);
     function Bullet(weapon, bulletPhysicsGroup) {
         var _this = _super.call(this, weapon.scene, weapon.x, weapon.y, 'bullet') || this;
-        _this.speed = 350;
+        _this.speed = 500;
         _this.bulletWeapon = weapon;
         bulletPhysicsGroup.add(_this);
         _this.scene.add.existing(_this);
@@ -166,6 +174,12 @@ var Bullet = /** @class */ (function (_super) {
     }
     Bullet.prototype.ApplyHit = function (fish) {
         var _a;
+        // Explosion animation
+        var sp = this.scene.add.sprite(this.x, this.y - 16, 'explosion');
+        sp.play('explosion_anim');
+        sp.on(Phaser.Animations.Events.ANIMATION_COMPLETE, function (anim, frame, gameObject) {
+            gameObject.destroy();
+        });
         fish.hp--;
         fish.setAlpha(0.5 + 0.05 * fish.hp);
         if (fish.hp <= 0) {
@@ -179,11 +193,11 @@ var Bullet = /** @class */ (function (_super) {
         }
         this.destroy(true);
     };
-    Bullet.prototype.FireToFish = function (focusedFish) {
+    Bullet.prototype.FireToFish = function (focusedFish, spread) {
         var _this = this;
         this.moveDirection = new Phaser.Math.Vector2(focusedFish.x - this.x, focusedFish.y - this.y);
         this.moveDirection.normalize();
-        this.setRotation(Math.atan2(this.moveDirection.y, this.moveDirection.x));
+        this.setRotation(Math.atan2(this.moveDirection.y, this.moveDirection.x) + Math.random() * spread - spread / 2);
         this.setVelocity(this.moveDirection.x * this.speed, this.moveDirection.y * this.speed);
         this.scene.time.addEvent({
             delay: this.bulletWeapon.range / this.speed * 1000,
@@ -196,26 +210,31 @@ var Bullet = /** @class */ (function (_super) {
 var Weapon = /** @class */ (function (_super) {
     __extends(Weapon, _super);
     function Weapon(octopus, offsetX, offsetY, range, weaponsPhysicsGroup, bulletPhysicsGroup) {
-        var _this = _super.call(this, octopus.scene, octopus.x + offsetX, octopus.y + offsetY, 'dummy') || this;
+        var _this = _super.call(this, octopus.scene, octopus.x + offsetX, octopus.y + offsetY, 'fin') || this;
         _this.offsetX = 0;
         _this.offsetY = 0;
         _this.range = 0;
+        _this.spread = 0.4;
         _this.fishesInRange = {};
         _this.nextFireTime = 0;
-        _this.fireRate = 200;
+        _this.fireRate = 100;
+        _this.depth = octopus.depth - 0.1;
+        _this.setOrigin(0, 0.5);
+        _this.setRotation(Math.atan2(-offsetY, -offsetX));
+        //this.setVisible(false);
         _this.weaponOwner = octopus;
         _this.offsetX = offsetX;
         _this.offsetY = offsetY;
         _this.range = range;
-        _this.setVisible(false);
         weaponsPhysicsGroup.add(_this);
+        _this.scene.add.existing(_this);
         _this.setCircle(range, -range, -range);
         _this.bulletPhysicsGroup = bulletPhysicsGroup;
         return _this;
     }
     Weapon.prototype.FireWeapon = function (focusedFish) {
         var bullet = new Bullet(this, this.bulletPhysicsGroup);
-        bullet.FireToFish(focusedFish);
+        bullet.FireToFish(focusedFish, this.spread);
     };
     Weapon.prototype.UpdateWeapon = function (graphics) {
         var _a;
@@ -262,17 +281,19 @@ var Octopus = /** @class */ (function (_super) {
         _this.desiredX = 0;
         _this.desiredY = 0;
         _this.weapons = [];
+        _this.speed = 0.3; // Expressed as distance covered per millisecond
         _this.name = name;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
         _this.desiredX = _this.x;
         _this.desiredY = _this.y;
         _this.lastUpdateTime = _this.scene.time.now;
-        for (var i = 0; i < 1; i++) {
-            var w1 = new Weapon(_this, 100, i * 30, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
-            var w2 = new Weapon(_this, -100, i * 30, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
-            _this.weapons.push(w1, w2);
-        }
+        var w1 = new Weapon(_this, 90, 45, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
+        var w2 = new Weapon(_this, -90, 45, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
+        _this.weapons.push(w1, w2);
+        var w3 = new Weapon(_this, 60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
+        var w4 = new Weapon(_this, -60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
+        _this.weapons.push(w3, w4);
         scene.add.existing(_this);
         octopiPhysicsGroup.add(_this);
         _this.setCircle(125, _this.originX - 125, _this.originY - 125);
@@ -282,7 +303,7 @@ var Octopus = /** @class */ (function (_super) {
         this.weapons.forEach(function (w) { return w.UpdateWeapon(graphics); });
         var deltaTime = this.scene.time.now - this.lastUpdateTime;
         this.lastUpdateTime = this.scene.time.now;
-        var speed = OCTOPUSSPEED * deltaTime;
+        var speed = this.speed * deltaTime;
         var moveDirection = new Phaser.Math.Vector2(this.desiredX - this.x, this.desiredY - this.y);
         if (moveDirection.length() <= speed) {
             this.x = this.desiredX;
