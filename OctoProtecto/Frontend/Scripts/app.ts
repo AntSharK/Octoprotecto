@@ -137,8 +137,8 @@ class TestScene extends Phaser.Scene {
             this.game.canvas.height / 2,
             this.octopi,
             this.weapons,
-            this.bullets);
-        this.octopus.tint = 0xFF00FF;
+            this.bullets,
+            0x00FFFF);
 
         this.time.addEvent({
             delay: 5000,
@@ -149,8 +149,6 @@ class TestScene extends Phaser.Scene {
     }
 
     spawnFish(numberOfFish: integer) {
-
-        // PLACEHOLDER: Explosion animation
         var spawnAnims: Phaser.GameObjects.Sprite[] = [];
         for (var i = 0; i < numberOfFish; i++) {
             var newSpawnAnim = this.add.sprite(0, 0, 'explosion');
@@ -167,21 +165,9 @@ class TestScene extends Phaser.Scene {
                 this.fishes.add(fish);
                 Phaser.Math.RandomXY(fish.body.velocity, 50);
                 fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
+                gameObject.destroy();
             }, this);
         }
-        /*
-        var fishes: Fish[] = [];
-        for (var i = 0; i < numberOfFish; i++) {
-            var fish = new Fish("fish" + this.fishIndex, this, 0, 0);
-            this.fishIndex++;
-            fishes.push(fish);
-            this.add.existing(fish);
-            this.fishes.add(fish);
-            Phaser.Math.RandomXY(fish.body.velocity, 50);
-            fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
-        }
-
-        Phaser.Actions.RandomRectangle(fishes, this.spawningRect);*/
     }
 
     update() {
@@ -204,6 +190,7 @@ class TestScene extends Phaser.Scene {
 class Fish extends Phaser.Physics.Arcade.Sprite {
     uniqueName: string;
     hp: integer = 25;
+    points: number = 1;
 
     constructor(uniqueName: string, scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, 'fish');
@@ -230,7 +217,6 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     ApplyHit(fish: Fish) {
-        // PLACEHOLDER: Explosion animation
         var sp = this.scene.add.sprite(this.x, this.y, 'explosion');
         sp.play('explosion_anim');
         sp.on(Phaser.Animations.Events.ANIMATION_COMPLETE, function (anim, frame, gameObject) {
@@ -248,6 +234,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
                 delete this.bulletWeapon.fishesInRange[fish.uniqueName];
             }
 
+            this.bulletWeapon.weaponOwner.points += fish.points;
             fish.destroy(true);
         }
 
@@ -355,11 +342,13 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
     name: string;
     weapons: Weapon[] = [];
     speed: number = 0.3; // Expressed as distance covered per millisecond
+    points: number = 0;
 
     constructor(name: string, scene: Phaser.Scene, x: number, y: number,
         octopiPhysicsGroup: Phaser.Physics.Arcade.Group,
         weaponsPhysicsGroup: Phaser.Physics.Arcade.Group,
-        bulletPhysicsGroup: Phaser.Physics.Arcade.Group) {
+        bulletPhysicsGroup: Phaser.Physics.Arcade.Group,
+        tint: number) {
         super(scene, x, y, 'octopus');
 
         this.name = name;
@@ -376,6 +365,11 @@ class Octopus extends Phaser.Physics.Arcade.Sprite {
         var w3 = new Weapon(this, 60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
         var w4 = new Weapon(this, -60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
         this.weapons.push(w3, w4);
+
+        this.tint = tint;
+        for (let i in this.weapons) {
+            this.weapons[i].tint = tint;
+        }
 
         scene.add.existing(this);
         octopiPhysicsGroup.add(this);

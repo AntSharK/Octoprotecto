@@ -128,8 +128,7 @@ var TestScene = /** @class */ (function (_super) {
             var fish = body1;
             bullet.ApplyHit(fish);
         });
-        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets);
-        this.octopus.tint = 0xFF00FF;
+        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets, 0x00FFFF);
         this.time.addEvent({
             delay: 5000,
             callback: function () { return _this.spawnFish(5); },
@@ -138,7 +137,6 @@ var TestScene = /** @class */ (function (_super) {
         });
     };
     TestScene.prototype.spawnFish = function (numberOfFish) {
-        // PLACEHOLDER: Explosion animation
         var spawnAnims = [];
         for (var i = 0; i < numberOfFish; i++) {
             var newSpawnAnim = this.add.sprite(0, 0, 'explosion');
@@ -154,21 +152,9 @@ var TestScene = /** @class */ (function (_super) {
                 this.fishes.add(fish);
                 Phaser.Math.RandomXY(fish.body.velocity, 50);
                 fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
+                gameObject.destroy();
             }, this);
         }
-        /*
-        var fishes: Fish[] = [];
-        for (var i = 0; i < numberOfFish; i++) {
-            var fish = new Fish("fish" + this.fishIndex, this, 0, 0);
-            this.fishIndex++;
-            fishes.push(fish);
-            this.add.existing(fish);
-            this.fishes.add(fish);
-            Phaser.Math.RandomXY(fish.body.velocity, 50);
-            fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
-        }
-
-        Phaser.Actions.RandomRectangle(fishes, this.spawningRect);*/
     };
     TestScene.prototype.update = function () {
         this.graphics.clear();
@@ -189,6 +175,7 @@ var Fish = /** @class */ (function (_super) {
     function Fish(uniqueName, scene, x, y) {
         var _this = _super.call(this, scene, x, y, 'fish') || this;
         _this.hp = 25;
+        _this.points = 1;
         _this.uniqueName = uniqueName;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
@@ -208,7 +195,6 @@ var Bullet = /** @class */ (function (_super) {
     }
     Bullet.prototype.ApplyHit = function (fish) {
         var _a;
-        // PLACEHOLDER: Explosion animation
         var sp = this.scene.add.sprite(this.x, this.y, 'explosion');
         sp.play('explosion_anim');
         sp.on(Phaser.Animations.Events.ANIMATION_COMPLETE, function (anim, frame, gameObject) {
@@ -223,6 +209,7 @@ var Bullet = /** @class */ (function (_super) {
             if (fish.uniqueName in this.bulletWeapon.fishesInRange) {
                 delete this.bulletWeapon.fishesInRange[fish.uniqueName];
             }
+            this.bulletWeapon.weaponOwner.points += fish.points;
             fish.destroy(true);
         }
         this.destroy(true);
@@ -310,12 +297,13 @@ var Weapon = /** @class */ (function (_super) {
 }(Phaser.Physics.Arcade.Sprite));
 var Octopus = /** @class */ (function (_super) {
     __extends(Octopus, _super);
-    function Octopus(name, scene, x, y, octopiPhysicsGroup, weaponsPhysicsGroup, bulletPhysicsGroup) {
+    function Octopus(name, scene, x, y, octopiPhysicsGroup, weaponsPhysicsGroup, bulletPhysicsGroup, tint) {
         var _this = _super.call(this, scene, x, y, 'octopus') || this;
         _this.desiredX = 0;
         _this.desiredY = 0;
         _this.weapons = [];
         _this.speed = 0.3; // Expressed as distance covered per millisecond
+        _this.points = 0;
         _this.name = name;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
@@ -328,6 +316,10 @@ var Octopus = /** @class */ (function (_super) {
         var w3 = new Weapon(_this, 60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
         var w4 = new Weapon(_this, -60, 80, 225, weaponsPhysicsGroup, bulletPhysicsGroup);
         _this.weapons.push(w3, w4);
+        _this.tint = tint;
+        for (var i in _this.weapons) {
+            _this.weapons[i].tint = tint;
+        }
         scene.add.existing(_this);
         octopiPhysicsGroup.add(_this);
         _this.setCircle(125, _this.originX - 125, _this.originY - 125);
