@@ -44,6 +44,7 @@ var TestScene = /** @class */ (function (_super) {
     function TestScene() {
         var _this = _super !== null && _super.apply(this, arguments) || this;
         _this.keyboardDirection = [0, 0];
+        _this.fishIndex = 1;
         return _this;
     }
     TestScene.prototype.preload = function () {
@@ -62,6 +63,7 @@ var TestScene = /** @class */ (function (_super) {
         background.displayWidth = this.game.canvas.width;
         background.displayHeight = this.game.canvas.height;
         background.depth = -1;
+        this.spawningRect = new Phaser.Geom.Rectangle(50, 50, this.game.canvas.width - 100, this.game.canvas.height - 100);
         this.anims.create({
             key: 'explosion_anim',
             frames: this.anims.generateFrameNumbers('explosion', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
@@ -114,15 +116,6 @@ var TestScene = /** @class */ (function (_super) {
             defaultKey: 'bullet',
             immovable: false
         });
-        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets);
-        this.octopus.tint = 0xFF00FF;
-        for (var i = 0; i < 20; i++) {
-            var fish = new Fish("fish" + i, this, 200 + i * 50, 200 + i * 50);
-            this.add.existing(fish);
-            this.fishes.add(fish);
-            Phaser.Math.RandomXY(fish.body.velocity, 100);
-            //fish.setCircle(FISHCIRCLE, fish.originX - FISHCIRCLE, fish.originY - FISHCIRCLE);
-        }
         this.physics.add.overlap(this.fishes, this.weapons, function (body1, body2) {
             var weapon = body2;
             var fish = body1;
@@ -135,6 +128,47 @@ var TestScene = /** @class */ (function (_super) {
             var fish = body1;
             bullet.ApplyHit(fish);
         });
+        this.octopus = new Octopus("testOctopus", this, this.game.canvas.width / 2, this.game.canvas.height / 2, this.octopi, this.weapons, this.bullets);
+        this.octopus.tint = 0xFF00FF;
+        this.time.addEvent({
+            delay: 5000,
+            callback: function () { return _this.spawnFish(5); },
+            callbackScope: this,
+            loop: true
+        });
+    };
+    TestScene.prototype.spawnFish = function (numberOfFish) {
+        // PLACEHOLDER: Explosion animation
+        var spawnAnims = [];
+        for (var i = 0; i < numberOfFish; i++) {
+            var newSpawnAnim = this.add.sprite(0, 0, 'explosion');
+            spawnAnims.push(newSpawnAnim);
+        }
+        Phaser.Actions.RandomRectangle(spawnAnims, this.spawningRect);
+        for (var i_1 in spawnAnims) {
+            spawnAnims[i_1].play('explosion_anim');
+            spawnAnims[i_1].on(Phaser.Animations.Events.ANIMATION_COMPLETE, function (anim, frame, gameObject) {
+                var fish = new Fish("fish" + this.fishIndex, this, gameObject.x, gameObject.y);
+                this.fishIndex++;
+                this.add.existing(fish);
+                this.fishes.add(fish);
+                Phaser.Math.RandomXY(fish.body.velocity, 50);
+                fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
+            }, this);
+        }
+        /*
+        var fishes: Fish[] = [];
+        for (var i = 0; i < numberOfFish; i++) {
+            var fish = new Fish("fish" + this.fishIndex, this, 0, 0);
+            this.fishIndex++;
+            fishes.push(fish);
+            this.add.existing(fish);
+            this.fishes.add(fish);
+            Phaser.Math.RandomXY(fish.body.velocity, 50);
+            fish.setCircle(fish.width / 3, fish.originX - fish.width / 3, fish.originY - fish.width / 3);
+        }
+
+        Phaser.Actions.RandomRectangle(fishes, this.spawningRect);*/
     };
     TestScene.prototype.update = function () {
         this.graphics.clear();
@@ -154,7 +188,7 @@ var Fish = /** @class */ (function (_super) {
     __extends(Fish, _super);
     function Fish(uniqueName, scene, x, y) {
         var _this = _super.call(this, scene, x, y, 'fish') || this;
-        _this.hp = 10;
+        _this.hp = 25;
         _this.uniqueName = uniqueName;
         _this.originX = _this.width / 2;
         _this.originY = _this.height / 2;
@@ -174,8 +208,8 @@ var Bullet = /** @class */ (function (_super) {
     }
     Bullet.prototype.ApplyHit = function (fish) {
         var _a;
-        // Explosion animation
-        var sp = this.scene.add.sprite(this.x, this.y - 16, 'explosion');
+        // PLACEHOLDER: Explosion animation
+        var sp = this.scene.add.sprite(this.x, this.y, 'explosion');
         sp.play('explosion_anim');
         sp.on(Phaser.Animations.Events.ANIMATION_COMPLETE, function (anim, frame, gameObject) {
             gameObject.destroy();
